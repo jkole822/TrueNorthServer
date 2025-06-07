@@ -1,12 +1,14 @@
 use async_graphql::{EmptySubscription, Schema};
 use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
 use axum::{
+    http::{header, Method},
     response::Html,
     routing::{get, post},
     Extension, Router, Server,
 };
 use sqlx::PgPool;
 use std::net::SocketAddr;
+use tower_http::cors::{Any, CorsLayer};
 
 mod middleware;
 mod models;
@@ -38,9 +40,16 @@ async fn main() {
         schema.execute(request).await.into()
     }
 
+    let cors = CorsLayer::new()
+        .allow_origin(Any) // or .allow_origin("https://yourfrontend.com".parse().unwrap())
+        .allow_methods([Method::POST])
+        .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION]);
+
     let app = Router::new()
         .route("/", get(graphiql))
         .route("/graphql", post(graphql_handler))
+        .route("/healthz", get(|| async { "OK" }))
+        .layer(cors)
         .layer(Extension(schema))
         .layer(Extension(pool));
 
