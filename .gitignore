@@ -1,0 +1,19 @@
+**/.env
+
+# Rust build
+**/target
+
+# Executables (if you're building directly)
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Backup files
+*.log
+*.tmp
+
+# IDEs
+.idea/
+.vscode/
+*.swp
