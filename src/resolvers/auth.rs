@@ -3,7 +3,7 @@ use async_graphql::{Context, Error, ErrorExtensions, Object, Result};
 use bcrypt::{hash, verify, DEFAULT_COST};
 use chrono::{Duration, Utc};
 use jsonwebtoken::{encode, EncodingKey, Header};
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 use std::env;
 use uuid::Uuid;
 
@@ -13,17 +13,17 @@ pub struct AuthMutation;
 #[Object]
 impl AuthMutation {
     pub async fn register_user(&self, ctx: &Context<'_>, input: RegisterInput) -> Result<bool> {
-        let pool = ctx.data::<SqlitePool>()?;
+        let pool = ctx.data::<PgPool>()?;
         let hashed_password = hash(input.password, DEFAULT_COST).map_err(|e| {
             Error::new("Hashing failed").extend_with(|_, ext| ext.set("error", e.to_string()))
         })?;
 
-        sqlx::query("INSERT INTO users (id, email, password, is_superuser, created_at) VALUES (?1, ?2, ?3, ?4, ?5)")
-            .bind(Uuid::new_v4().to_string())
+        sqlx::query("INSERT INTO users (id, email, password, is_superuser, created_at) VALUES ($1, $2, $3, $4, $5)")
+            .bind(Uuid::new_v4())
             .bind(input.email)
             .bind(hashed_password)
             .bind(false)
-            .bind(chrono::Utc::now())
+            .bind(Utc::now())
             .execute(pool)
             .await
             .map_err(|e| Error::new("DB insert failed").extend_with(|_, ext| ext.set("error", e.to_string())))?;
@@ -32,9 +32,9 @@ impl AuthMutation {
     }
 
     pub async fn login(&self, ctx: &Context<'_>, input: LoginInput) -> Result<String> {
-        let pool = ctx.data::<SqlitePool>()?;
+        let pool = ctx.data::<PgPool>()?;
 
-        let user = sqlx::query_as::<_, UserRow>("SELECT * FROM users WHERE email = ?")
+        let user = sqlx::query_as::<_, UserRow>("SELECT * FROM users WHERE email = $1")
             .bind(input.email)
             .fetch_optional(pool)
             .await

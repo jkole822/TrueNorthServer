@@ -1,6 +1,7 @@
 use async_graphql::{InputObject, SimpleObject};
 use chrono::{DateTime, Utc};
 use sqlx::FromRow;
+use uuid::Uuid;
 
 #[derive(InputObject)]
 pub struct RegisterInput {
@@ -25,9 +26,9 @@ pub struct User {
 
 #[derive(FromRow)]
 pub struct UserRow {
-    pub id: String,
+    pub id: Uuid,
     pub email: String,
     pub password: String,
     pub is_superuser: bool,
-    pub created_at: String,
+    pub created_at: DateTime<Utc>,
 }

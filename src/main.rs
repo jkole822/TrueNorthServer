@@ -5,8 +5,7 @@ use axum::{
     routing::{get, post},
     Extension, Router, Server,
 };
-use dotenvy::dotenv;
-use sqlx::sqlite::SqlitePool;
+use sqlx::PgPool;
 use std::net::SocketAddr;
 
 mod middleware;
@@ -19,8 +18,8 @@ use schema::{AppSchema, MutationRoot, QueryRoot};
 
 #[tokio::main]
 async fn main() {
-    dotenv().expect("Failed to load .env file");
-    let pool = SqlitePool::connect("sqlite:db.sqlite3").await.unwrap();
+    let db_url = std::env::var("DATABASE_URL").expect("Missing DATABASE_URL");
+    let pool = PgPool::connect(&db_url).await.unwrap();
     let schema = Schema::build(QueryRoot, MutationRoot, EmptySubscription)
         .data(pool.clone())
         .finish();
@@ -45,7 +44,7 @@ async fn main() {
         .layer(Extension(schema))
         .layer(Extension(pool));
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
+    let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
     println!("🚀 Server running at http://{}", addr);
 
     Server::bind(&addr)

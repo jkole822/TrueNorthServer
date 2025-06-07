@@ -1,6 +1,7 @@
 use async_graphql::{InputObject, SimpleObject};
 use chrono::{DateTime, Utc};
 use sqlx::FromRow;
+use uuid::Uuid;
 
 #[derive(InputObject)]
 pub struct DecisionInput {
@@ -16,11 +17,11 @@ pub struct Decision {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(FromRow)]
+#[derive(FromRow, Clone)]
 pub struct DecisionRow {
-    pub id: String,
+    pub id: Uuid,
     pub answer: Option<String>,
     pub question: String,
-    pub user_id: String,
-    pub created_at: String,
+    pub user_id: Uuid,
+    pub created_at: DateTime<Utc>,
 }

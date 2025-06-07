@@ -1,74 +1,60 @@
 use crate::models::{AuthUser, Decision, DecisionInput, DecisionRow};
 use async_graphql::{Context, Error, ErrorExtensions, Object, Result};
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use reqwest::Client;
 use serde_json::json;
-use sqlx::SqlitePool;
+use sqlx::PgPool;
 use uuid::Uuid;
 
 pub struct DecisionQuery;
-
-fn parse_created_at(created_at: String) -> core::result::Result<DateTime<Utc>, Error> {
-    created_at.parse::<DateTime<Utc>>().map_err(|e| {
-        Error::new("Invalid datetime format").extend_with(|_, ext| ext.set("source", e.to_string()))
-    })
-}
 
 #[Object]
 impl DecisionQuery {
     pub async fn decisions(&self, ctx: &Context<'_>) -> Result<Vec<Decision>> {
         ctx.data::<AuthUser>()
             .map_err(|_| Error::new("You must be logged in to perform this action"))?;
-        let pool = ctx.data::<SqlitePool>()?;
+        let pool = ctx.data::<PgPool>()?;
 
         let decision_rows = sqlx::query_as::<_, DecisionRow>("SELECT * FROM decisions")
             .fetch_all(pool)
             .await?;
 
-        let decisions = decision_rows
+        Ok(decision_rows
             .into_iter()
             .map(|decision_row| {
-                let created_at = parse_created_at(decision_row.created_at)?;
-
                 Ok(Decision {
-                    id: decision_row.id,
+                    id: decision_row.id.to_string(),
                     answer: decision_row.answer,
                     question: decision_row.question,
-                    user_id: decision_row.user_id,
-                    created_at,
+                    user_id: decision_row.user_id.to_string(),
+                    created_at: decision_row.created_at,
                 })
             })
-            .collect::<Result<Vec<Decision>, Error>>()?;
-
-        Ok(decisions)
+            .collect::<Result<Vec<Decision>, Error>>()?)
     }
 
     pub async fn decision_by_id(&self, ctx: &Context<'_>, id: String) -> Result<Option<Decision>> {
         ctx.data::<AuthUser>()
             .map_err(|_| Error::new("You must be logged in to perform this action"))?;
-        let pool = ctx.data::<SqlitePool>()?;
+        let pool = ctx.data::<PgPool>()?;
 
-        let decision_row = sqlx::query_as::<_, DecisionRow>("SELECT * FROM decisions WHERE id = ?")
-            .bind(id.clone())
-            .fetch_optional(pool)
-            .await?;
+        let uuid = Uuid::parse_str(&id).map_err(|_| {
+            Error::new("Invalid UUID format").extend_with(|_, e| e.set("field", "id"))
+        })?;
 
-        let decision = match decision_row {
-            Some(decision_row) => {
-                let created_at = parse_created_at(decision_row.created_at)?;
+        let decision_row =
+            sqlx::query_as::<_, DecisionRow>("SELECT * FROM decisions WHERE id = $1")
+                .bind(uuid)
+                .fetch_optional(pool)
+                .await?;
 
-                Some(Decision {
-                    id: decision_row.id,
-                    answer: decision_row.answer,
-                    question: decision_row.question,
-                    user_id: decision_row.user_id,
-                    created_at,
-                })
-            }
-            None => None,
-        };
-
-        Ok(decision)
+        Ok(decision_row.map(|decision| Decision {
+            id: decision.id.to_string(),
+            answer: decision.answer,
+            question: decision.question,
+            user_id: decision.user_id.to_string(),
+            created_at: decision.created_at,
+        }))
     }
 }
 
@@ -81,7 +67,7 @@ impl DecisionMutation {
         ctx: &Context<'_>,
         input: DecisionInput,
     ) -> Result<Decision> {
-        let pool = ctx.data::<SqlitePool>()?;
+        let pool = ctx.data::<PgPool>()?;
         let user = ctx
             .data::<AuthUser>()
             .map_err(|_| Error::new("You must be logged in to perform this action"))?;
@@ -129,11 +115,11 @@ impl DecisionMutation {
             .trim()
             .to_string();
 
-        let id = Uuid::new_v4().to_string();
+        let id = Uuid::new_v4();
         let created_at = Utc::now();
 
         let query_result = sqlx::query(
-            "INSERT INTO decisions (id, question, answer, user_id, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT INTO decisions (id, question, answer, user_id, created_at) VALUES ($1, $2, $3, $4, $5)",
         )
         .bind(&id)
         .bind(&question)
@@ -145,16 +131,16 @@ impl DecisionMutation {
 
         match query_result {
             Ok(_) => Ok(Decision {
-                id,
+                id: id.to_string(),
                 answer: Some(answer),
                 question: question.to_string(),
-                user_id: String::new(),
+                user_id: user.id.to_string(),
                 created_at,
             }),
             Err(e) => Err(
                 Error::new("Failed to create decision").extend_with(|_, ext| {
                     ext.set("error", format!("{}", e));
-                    ext.set("id", id);
+                    ext.set("id", id.to_string());
                 }),
             ),
         }
