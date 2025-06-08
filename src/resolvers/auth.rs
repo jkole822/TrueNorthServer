@@ -26,7 +26,7 @@ impl AuthMutation {
             .bind(Utc::now())
             .execute(pool)
             .await
-            .map_err(|e| Error::new("DB insert failed").extend_with(|_, ext| ext.set("error", e.to_string())))?;
+            .map_err(|e| Error::new("Failed to execute mutation").extend_with(|_, ext| ext.set("error", e.to_string())))?;
 
         Ok(true)
     }
@@ -39,7 +39,8 @@ impl AuthMutation {
             .fetch_optional(pool)
             .await
             .map_err(|e| {
-                Error::new("Database error").extend_with(|_, ext| ext.set("source", e.to_string()))
+                Error::new("Failed to execute query")
+                    .extend_with(|_, ext| ext.set("source", e.to_string()))
             })?;
 
         let Some(user) = user else {
