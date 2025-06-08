@@ -18,6 +18,10 @@ impl MutationRoot {
         DecisionMutation.create_decision(ctx, input).await
     }
 
+    async fn delete_decision(&self, ctx: &Context<'_>, id: String) -> Result<Option<Decision>> {
+        DecisionMutation.delete_decision(ctx, id).await
+    }
+
     async fn login(&self, ctx: &Context<'_>, input: LoginInput) -> Result<String> {
         AuthMutation.login(ctx, input).await
     }

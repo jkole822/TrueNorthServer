@@ -183,4 +183,30 @@ impl DecisionMutation {
             ),
         }
     }
+
+    pub async fn delete_decision(&self, ctx: &Context<'_>, id: String) -> Result<Option<Decision>> {
+        let pool = ctx.data::<PgPool>()?;
+        ctx.data::<AuthUser>()
+            .map_err(|_| Error::new("You must be logged in to perform this action"))?;
+
+        let uuid = Uuid::parse_str(&id).map_err(|_| {
+            Error::new("Invalid UUID format").extend_with(|_, e| e.set("field", "id"))
+        })?;
+
+        let decision_row = sqlx::query_as::<_, DecisionRow>("DELETE FROM decisions WHERE id = $1")
+            .bind(uuid)
+            .fetch_optional(pool)
+            .await?;
+
+        Ok(decision_row.map(|decision| Decision {
+            id: decision.id.to_string(),
+            answer: decision.answer,
+            category: decision.category,
+            desired_outcome: decision.desired_outcome,
+            emotions: decision.emotions,
+            question: decision.question,
+            user_id: decision.user_id.to_string(),
+            created_at: decision.created_at,
+        }))
+    }
 }
