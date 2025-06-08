@@ -11,13 +11,16 @@ pub struct DecisionQuery;
 #[Object]
 impl DecisionQuery {
     pub async fn decisions(&self, ctx: &Context<'_>) -> Result<Vec<Decision>> {
-        ctx.data::<AuthUser>()
+        let user = ctx
+            .data::<AuthUser>()
             .map_err(|_| Error::new("You must be logged in to perform this action"))?;
         let pool = ctx.data::<PgPool>()?;
 
-        let decision_rows = sqlx::query_as::<_, DecisionRow>("SELECT * FROM decisions")
-            .fetch_all(pool)
-            .await?;
+        let decision_rows =
+            sqlx::query_as::<_, DecisionRow>("SELECT * FROM decisions WHERE user_id = $1")
+                .bind(user.id)
+                .fetch_all(pool)
+                .await?;
 
         Ok(decision_rows
             .into_iter()
@@ -37,7 +40,8 @@ impl DecisionQuery {
     }
 
     pub async fn decision_by_id(&self, ctx: &Context<'_>, id: String) -> Result<Option<Decision>> {
-        ctx.data::<AuthUser>()
+        let user = ctx
+            .data::<AuthUser>()
             .map_err(|_| Error::new("You must be logged in to perform this action"))?;
         let pool = ctx.data::<PgPool>()?;
 
@@ -45,11 +49,13 @@ impl DecisionQuery {
             Error::new("Invalid UUID format").extend_with(|_, e| e.set("field", "id"))
         })?;
 
-        let decision_row =
-            sqlx::query_as::<_, DecisionRow>("SELECT * FROM decisions WHERE id = $1")
-                .bind(uuid)
-                .fetch_optional(pool)
-                .await?;
+        let decision_row = sqlx::query_as::<_, DecisionRow>(
+            "SELECT * FROM decisions WHERE id = $1 and user_id = $2",
+        )
+        .bind(uuid)
+        .bind(user.id)
+        .fetch_optional(pool)
+        .await?;
 
         Ok(decision_row.map(|decision| Decision {
             id: decision.id.to_string(),
@@ -68,11 +74,7 @@ pub struct DecisionMutation;
 
 #[Object]
 impl DecisionMutation {
-    pub async fn create_decision(
-        &self,
-        ctx: &Context<'_>,
-        input: DecisionInput,
-    ) -> Result<Decision> {
+    pub async fn create_decision(&self, ctx: &Context<'_>, input: DecisionInput) -> Result<bool> {
         let pool = ctx.data::<PgPool>()?;
         let user = ctx
             .data::<AuthUser>()
@@ -147,41 +149,23 @@ impl DecisionMutation {
             .trim()
             .to_string();
 
-        let id = Uuid::new_v4();
-        let created_at = Utc::now();
-
-        let query_result = sqlx::query(
-            "INSERT INTO decisions (id, answer, category, desired_outcome, emotions, question, user_id, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+        sqlx::query(
+            "INSERT INTO decisions (id, answer, category, desired_outcome, emotions, question, user_id, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
         )
-        .bind(&id)
-        .bind(&answer)
-        .bind(&category)
-        .bind(&desired_outcome)
-        .bind(&emotions)
-        .bind(&question)
-        .bind(&user.id)
-        .bind(&created_at)
+        .bind(Uuid::new_v4())
+        .bind(answer)
+        .bind(category)
+        .bind(desired_outcome)
+        .bind(emotions)
+        .bind(question)
+        .bind(user.id)
+        .bind(Utc::now())
         .execute(pool)
-        .await;
+        .await.map_err(|e| {
+            Error::new("Failed to execute mutation").extend_with(|_, ext| ext.set("error", e.to_string()))
+        })?;
 
-        match query_result {
-            Ok(_) => Ok(Decision {
-                id: id.to_string(),
-                answer: Some(answer),
-                category,
-                desired_outcome,
-                emotions,
-                question: question.to_string(),
-                user_id: user.id.to_string(),
-                created_at,
-            }),
-            Err(e) => Err(
-                Error::new("Failed to create decision").extend_with(|_, ext| {
-                    ext.set("error", format!("{}", e));
-                    ext.set("id", id.to_string());
-                }),
-            ),
-        }
+        Ok(true)
     }
 
     pub async fn delete_decision(&self, ctx: &Context<'_>, id: String) -> Result<bool> {
@@ -193,12 +177,12 @@ impl DecisionMutation {
             Error::new("Invalid UUID format").extend_with(|_, e| e.set("field", "id"))
         })?;
 
-        sqlx::query_as::<_, DecisionRow>("DELETE FROM decisions WHERE id = $1")
+        sqlx::query("DELETE FROM decisions WHERE id = $1")
             .bind(uuid)
             .fetch_optional(pool)
             .await
             .map_err(|e| {
-                Error::new("DB deletion failed")
+                Error::new("Failed to execute mutation")
                     .extend_with(|_, ext| ext.set("error", e.to_string()))
             })?;
 

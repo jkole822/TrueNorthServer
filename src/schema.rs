@@ -14,7 +14,7 @@ use async_graphql::Object;
 
 #[Object]
 impl MutationRoot {
-    async fn create_decision(&self, ctx: &Context<'_>, input: DecisionInput) -> Result<Decision> {
+    async fn create_decision(&self, ctx: &Context<'_>, input: DecisionInput) -> Result<bool> {
         DecisionMutation.create_decision(ctx, input).await
     }
 
