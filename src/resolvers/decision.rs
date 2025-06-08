@@ -15,17 +15,25 @@ fn parse_uuid(uuid: &String) -> Result<Uuid, Error> {
 
 #[Object]
 impl DecisionQuery {
-    pub async fn decisions(&self, ctx: &Context<'_>) -> Result<Vec<Decision>> {
+    pub async fn decisions(
+        &self,
+        ctx: &Context<'_>,
+        limit: i32,
+        offset: i32,
+    ) -> Result<Vec<Decision>> {
         let user = ctx
             .data::<AuthUser>()
             .map_err(|_| Error::new("You must be logged in to perform this action"))?;
         let pool = ctx.data::<PgPool>()?;
 
-        let decision_rows =
-            sqlx::query_as::<_, DecisionRow>("SELECT * FROM decisions WHERE user_id = $1")
-                .bind(user.id)
-                .fetch_all(pool)
-                .await?;
+        let decision_rows = sqlx::query_as::<_, DecisionRow>(
+            "SELECT * FROM decisions WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3"
+        )
+            .bind(user.id)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(pool)
+            .await?;
 
         Ok(decision_rows
             .into_iter()
@@ -44,6 +52,7 @@ impl DecisionQuery {
             })
             .collect::<Result<Vec<Decision>, Error>>()?)
     }
+
 
     pub async fn decision_by_id(&self, ctx: &Context<'_>, id: String) -> Result<Option<Decision>> {
         let user = ctx
