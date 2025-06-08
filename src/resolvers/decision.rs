@@ -1,4 +1,4 @@
-use crate::models::{AuthUser, Decision, DecisionInput, DecisionRow};
+use crate::models::{AuthUser, Decision, DecisionInput, DecisionRow, UpdateDecisionInput};
 use async_graphql::{Context, Error, ErrorExtensions, Object, Result};
 use chrono::Utc;
 use reqwest::Client;
@@ -7,6 +7,11 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 pub struct DecisionQuery;
+
+fn parse_uuid(uuid: &String) -> Result<Uuid, Error> {
+    Uuid::parse_str(&uuid)
+        .map_err(|_| Error::new("Invalid UUID format").extend_with(|_, e| e.set("field", "id")))
+}
 
 #[Object]
 impl DecisionQuery {
@@ -31,6 +36,7 @@ impl DecisionQuery {
                     category: decision_row.category,
                     desired_outcome: decision_row.desired_outcome,
                     emotions: decision_row.emotions,
+                    progress: decision_row.progress,
                     question: decision_row.question,
                     user_id: decision_row.user_id.to_string(),
                     created_at: decision_row.created_at,
@@ -45,9 +51,7 @@ impl DecisionQuery {
             .map_err(|_| Error::new("You must be logged in to perform this action"))?;
         let pool = ctx.data::<PgPool>()?;
 
-        let uuid = Uuid::parse_str(&id).map_err(|_| {
-            Error::new("Invalid UUID format").extend_with(|_, e| e.set("field", "id"))
-        })?;
+        let uuid = parse_uuid(&id)?;
 
         let decision_row = sqlx::query_as::<_, DecisionRow>(
             "SELECT * FROM decisions WHERE id = $1 and user_id = $2",
@@ -63,6 +67,7 @@ impl DecisionQuery {
             category: decision.category,
             desired_outcome: decision.desired_outcome,
             emotions: decision.emotions,
+            progress: decision.progress,
             question: decision.question,
             user_id: decision.user_id.to_string(),
             created_at: decision.created_at,
@@ -173,13 +178,36 @@ impl DecisionMutation {
         ctx.data::<AuthUser>()
             .map_err(|_| Error::new("You must be logged in to perform this action"))?;
 
-        let uuid = Uuid::parse_str(&id).map_err(|_| {
-            Error::new("Invalid UUID format").extend_with(|_, e| e.set("field", "id"))
-        })?;
+        let uuid = parse_uuid(&id)?;
 
         sqlx::query("DELETE FROM decisions WHERE id = $1")
             .bind(uuid)
-            .fetch_optional(pool)
+            .execute(pool)
+            .await
+            .map_err(|e| {
+                Error::new("Failed to execute mutation")
+                    .extend_with(|_, ext| ext.set("error", e.to_string()))
+            })?;
+
+        Ok(true)
+    }
+
+    pub async fn update_decision(
+        &self,
+        ctx: &Context<'_>,
+        id: String,
+        input: UpdateDecisionInput,
+    ) -> Result<bool> {
+        let pool = ctx.data::<PgPool>()?;
+        ctx.data::<AuthUser>()
+            .map_err(|_| Error::new("You must be logged in to perform this action"))?;
+
+        let uuid = parse_uuid(&id)?;
+
+        sqlx::query("UPDATE decisions SET progress = $1 WHERE id = $2")
+            .bind(input.progress)
+            .bind(uuid)
+            .execute(pool)
             .await
             .map_err(|e| {
                 Error::new("Failed to execute mutation")

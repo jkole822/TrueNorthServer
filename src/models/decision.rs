@@ -11,6 +11,11 @@ pub struct DecisionInput {
     pub question: String,
 }
 
+#[derive(InputObject)]
+pub struct UpdateDecisionInput {
+    pub progress: String,
+}
+
 #[derive(SimpleObject, Clone)]
 pub struct Decision {
     pub id: String,
@@ -18,6 +23,7 @@ pub struct Decision {
     pub category: Option<String>,
     pub desired_outcome: Option<String>,
     pub emotions: Option<Vec<String>>,
+    pub progress: String,
     pub question: String,
     pub user_id: String,
     pub created_at: DateTime<Utc>,
@@ -30,6 +36,7 @@ pub struct DecisionRow {
     pub category: Option<String>,
     pub desired_outcome: Option<String>,
     pub emotions: Option<Vec<String>>,
+    pub progress: String,
     pub question: String,
     pub user_id: Uuid,
     pub created_at: DateTime<Utc>,

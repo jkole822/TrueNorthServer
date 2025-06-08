@@ -1,4 +1,4 @@
-use crate::models::{Decision, DecisionInput, LoginInput, RegisterInput};
+use crate::models::{Decision, DecisionInput, LoginInput, RegisterInput, UpdateDecisionInput};
 use crate::resolvers::{AuthMutation, DecisionMutation, DecisionQuery};
 use async_graphql::{Context, EmptySubscription, Result, Schema};
 
@@ -20,6 +20,15 @@ impl MutationRoot {
 
     async fn delete_decision(&self, ctx: &Context<'_>, id: String) -> Result<bool> {
         DecisionMutation.delete_decision(ctx, id).await
+    }
+
+    async fn update_decision(
+        &self,
+        ctx: &Context<'_>,
+        id: String,
+        input: UpdateDecisionInput,
+    ) -> Result<bool> {
+        DecisionMutation.update_decision(ctx, id, input).await
     }
 
     async fn login(&self, ctx: &Context<'_>, input: LoginInput) -> Result<String> {
