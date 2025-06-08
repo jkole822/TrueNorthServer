@@ -18,7 +18,7 @@ impl MutationRoot {
         DecisionMutation.create_decision(ctx, input).await
     }
 
-    async fn delete_decision(&self, ctx: &Context<'_>, id: String) -> Result<Option<Decision>> {
+    async fn delete_decision(&self, ctx: &Context<'_>, id: String) -> Result<bool> {
         DecisionMutation.delete_decision(ctx, id).await
     }
 
