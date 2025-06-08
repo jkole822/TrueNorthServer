@@ -25,6 +25,9 @@ impl DecisionQuery {
                 Ok(Decision {
                     id: decision_row.id.to_string(),
                     answer: decision_row.answer,
+                    category: decision_row.category,
+                    desired_outcome: decision_row.desired_outcome,
+                    emotions: decision_row.emotions,
                     question: decision_row.question,
                     user_id: decision_row.user_id.to_string(),
                     created_at: decision_row.created_at,
@@ -51,6 +54,9 @@ impl DecisionQuery {
         Ok(decision_row.map(|decision| Decision {
             id: decision.id.to_string(),
             answer: decision.answer,
+            category: decision.category,
+            desired_outcome: decision.desired_outcome,
+            emotions: decision.emotions,
             question: decision.question,
             user_id: decision.user_id.to_string(),
             created_at: decision.created_at,
@@ -72,6 +78,32 @@ impl DecisionMutation {
             .data::<AuthUser>()
             .map_err(|_| Error::new("You must be logged in to perform this action"))?;
 
+        let mut context_parts = vec![];
+
+        let category = input.category;
+        if let Some(category) = &category {
+            context_parts.push(format!("Category: {}.", category));
+        }
+
+        let emotions = input.emotions;
+        if let Some(emotions) = &emotions {
+            context_parts.push(format!("Current emotional state: {}.", emotions.join(", ")));
+        }
+
+        let desired_outcome = input.desired_outcome;
+        if let Some(outcome) = &desired_outcome {
+            context_parts.push(format!(
+                "What I hope to feel or achieve: {}.",
+                outcome.trim()
+            ));
+        }
+
+        let context_string = if !context_parts.is_empty() {
+            format!("{}\n", context_parts.join("\n"))
+        } else {
+            String::new()
+        };
+
         let question = input.question.trim();
         if question.is_empty() {
             return Err(Error::new("Question cannot be empty")
@@ -79,8 +111,8 @@ impl DecisionMutation {
         }
 
         let prompt = format!(
-            "Provide a one sentence answer to this question:\n{}",
-            question
+            "{}Provide a one paragraph answer to this question:\n{}",
+            context_string, question
         );
 
         let openai_api_key =
@@ -119,11 +151,14 @@ impl DecisionMutation {
         let created_at = Utc::now();
 
         let query_result = sqlx::query(
-            "INSERT INTO decisions (id, question, answer, user_id, created_at) VALUES ($1, $2, $3, $4, $5)",
+            "INSERT INTO decisions (id, answer, category, desired_outcome, emotions, question, user_id, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
         )
         .bind(&id)
-        .bind(&question)
         .bind(&answer)
+        .bind(&category)
+        .bind(&desired_outcome)
+        .bind(&emotions)
+        .bind(&question)
         .bind(&user.id)
         .bind(&created_at)
         .execute(pool)
@@ -133,6 +168,9 @@ impl DecisionMutation {
             Ok(_) => Ok(Decision {
                 id: id.to_string(),
                 answer: Some(answer),
+                category,
+                desired_outcome,
+                emotions,
                 question: question.to_string(),
                 user_id: user.id.to_string(),
                 created_at,
