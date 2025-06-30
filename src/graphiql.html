@@ -1,27 +1,41 @@
 <!DOCTYPE html>
 <html>
-    <head>
-        <meta charset="utf-8" />
-        <title>GraphiQL</title>
-        <link href="https://unpkg.com/graphiql/graphiql.min.css" rel="stylesheet" />
-    </head>
-    <body style="margin: 0; overflow: hidden;">
-        <div id="graphiql" style="height: 100vh;"></div>
-        <script
-                crossorigin
-                src="https://unpkg.com/react@18/umd/react.production.min.js"
-        ></script>
-        <script
-                crossorigin
-                src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"
-        ></script>
-        <script src="https://unpkg.com/graphiql/graphiql.min.js"></script>
-        <script>
-            const fetcher = GraphiQL.createFetcher({ url: '/graphql' });
-            ReactDOM.render(
-                React.createElement(GraphiQL, { fetcher }),
-                document.getElementById('graphiql'),
-            );
-        </script>
-    </body>
+<head>
+    <meta charset="utf-8" />
+    <title>GraphiQL</title>
+    <link href="https://unpkg.com/graphiql@1.4.7/graphiql.min.css" rel="stylesheet" />
+</head>
+<body style="margin: 0;">
+<div id="graphiql" style="height: 100vh;"></div>
+<div style="position: absolute; top: 10px; right: 10px; z-index: 1000; background: white; padding: 10px; border: 1px solid #ccc;">
+    <label>
+        Auth Token:
+        <input id="token-input" type="text" placeholder="Bearer ..." style="width: 300px;" />
+    </label>
+</div>
+
+<script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/graphiql@1.4.7/graphiql.min.js"></script>
+<script>
+    function getToken() {
+        return document.getElementById('token-input').value;
+    }
+
+    const graphQLFetcher = graphQLParams =>
+        fetch('/graphql', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(getToken() ? { Authorization: getToken() } : {}),
+            },
+            body: JSON.stringify(graphQLParams),
+        }).then(response => response.json());
+
+    ReactDOM.render(
+        React.createElement(GraphiQL, { fetcher: graphQLFetcher }),
+        document.getElementById('graphiql'),
+    );
+</script>
+</body>
 </html>
