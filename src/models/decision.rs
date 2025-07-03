@@ -29,6 +29,12 @@ pub struct Decision {
     pub created_at: DateTime<Utc>,
 }
 
+#[derive(SimpleObject)]
+pub struct DecisionPage {
+    pub total: i64,
+    pub decisions: Vec<Decision>,
+}
+
 #[derive(FromRow, Clone)]
 pub struct DecisionRow {
     pub id: Uuid,

@@ -1,4 +1,6 @@
-use crate::models::{AuthUser, Decision, DecisionInput, DecisionRow, UpdateDecisionInput};
+use crate::models::{
+    AuthUser, Decision, DecisionInput, DecisionPage, DecisionRow, UpdateDecisionInput,
+};
 use async_graphql::{Context, Error, ErrorExtensions, Object, Result};
 use chrono::Utc;
 use reqwest::Client;
@@ -20,11 +22,17 @@ impl DecisionQuery {
         ctx: &Context<'_>,
         limit: i32,
         offset: i32,
-    ) -> Result<Vec<Decision>> {
+    ) -> Result<DecisionPage> {
         let user = ctx
             .data::<AuthUser>()
             .map_err(|_| Error::new("You must be logged in to perform this action"))?;
         let pool = ctx.data::<PgPool>()?;
+
+        let total: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) AS count FROM decisions WHERE user_id = $1")
+                .bind(user.id)
+                .fetch_one(pool)
+                .await?;
 
         let decision_rows = sqlx::query_as::<_, DecisionRow>(
             "SELECT * FROM decisions WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3"
@@ -35,24 +43,26 @@ impl DecisionQuery {
             .fetch_all(pool)
             .await?;
 
-        Ok(decision_rows
-            .into_iter()
-            .map(|decision_row| {
-                Ok(Decision {
-                    id: decision_row.id.to_string(),
-                    answer: decision_row.answer,
-                    category: decision_row.category,
-                    desired_outcome: decision_row.desired_outcome,
-                    emotions: decision_row.emotions,
-                    progress: decision_row.progress,
-                    question: decision_row.question,
-                    user_id: decision_row.user_id.to_string(),
-                    created_at: decision_row.created_at,
+        Ok(DecisionPage {
+            total: total.0,
+            decisions: decision_rows
+                .into_iter()
+                .map(|decision_row| {
+                    Ok(Decision {
+                        id: decision_row.id.to_string(),
+                        answer: decision_row.answer,
+                        category: decision_row.category,
+                        desired_outcome: decision_row.desired_outcome,
+                        emotions: decision_row.emotions,
+                        progress: decision_row.progress,
+                        question: decision_row.question,
+                        user_id: decision_row.user_id.to_string(),
+                        created_at: decision_row.created_at,
+                    })
                 })
-            })
-            .collect::<Result<Vec<Decision>, Error>>()?)
+                .collect::<Result<Vec<Decision>, Error>>()?,
+        })
     }
-
 
     pub async fn decision_by_id(&self, ctx: &Context<'_>, id: String) -> Result<Option<Decision>> {
         let user = ctx

@@ -1,4 +1,6 @@
-use crate::models::{Decision, DecisionInput, LoginInput, RegisterInput, UpdateDecisionInput};
+use crate::models::{
+    Decision, DecisionInput, DecisionPage, LoginInput, RegisterInput, UpdateDecisionInput,
+};
 use crate::resolvers::{AuthMutation, DecisionMutation, DecisionQuery};
 use async_graphql::{Context, EmptySubscription, Result, Schema};
 
@@ -47,7 +49,7 @@ impl QueryRoot {
         ctx: &Context<'_>,
         limit: Option<i32>,
         offset: Option<i32>,
-    ) -> Result<Vec<Decision>> {
+    ) -> Result<DecisionPage> {
         let limit = limit.unwrap_or(10);
         let offset = offset.unwrap_or(0);
         DecisionQuery.decisions(ctx, limit, offset).await
